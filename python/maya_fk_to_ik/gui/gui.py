@@ -5,12 +5,13 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..app import MatchFKToIK
 from ..core.const import DEFAULT_MATCH_INFO_FILE_NAME, DEFAULT_SETTINGS_FOLDER_PATH
+from ..core.rotate_type import RotateType
 from .model import (
     MatchInfoTableModel,
-    RotateTypeDelegate,
     UserRole,
     get_match_info_from_selection,
     select_node,
+    undo,
 )
 from .ui.main_ui import Ui_MainWindow
 
@@ -18,6 +19,65 @@ if TYPE_CHECKING:
     from ..core.match_info import MatchInfo
 
 GUI_SETTINGS_FILE = DEFAULT_SETTINGS_FOLDER_PATH / "gui_settings.ini"
+
+
+class RotateTypeDialog(QtWidgets.QDialog):
+    """RotateTypeを選択するダイアログ"""
+    pressed_rotate_type_signal = QtCore.Signal(RotateType)
+    released_rotate_type_signal = QtCore.Signal()
+
+    def __init__(self, current_rotate_type: RotateType, parent=None) -> None:
+        super().__init__(parent)
+        self.current_rotate_type = current_rotate_type
+
+        self.setWindowTitle("Select Rotate Type")
+        self.resize(300, 200)
+
+        self.layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)  # type: ignore
+
+        self.rotate_type_buttons: list[QtWidgets.QPushButton] = []
+        for rotate_type in RotateType:
+            button = QtWidgets.QPushButton(rotate_type, self)
+            button.pressed.connect(self._on_button_pressed)
+            button.released.connect(self._on_button_released)
+            self.rotate_type_buttons.append(button)
+            self.layout.addWidget(button)
+
+        self.button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel, self)
+        self.layout.addWidget(self.button_box)
+
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+
+        self._change_all_button_style()
+
+    def get_selected_type(self) -> RotateType:
+        """選択された回転タイプを返す
+
+        Returns:
+            RotateType: 選択された回転タイプ
+        """
+        return self.current_rotate_type
+
+    def _on_button_pressed(self) -> None:
+        """回転タイプボタンがクリックされたときの処理"""
+        button: QtWidgets.QPushButton = self.sender()  # type: ignore
+        if button:
+            self.current_rotate_type = RotateType(button.text())
+            self._change_all_button_style()
+            self.pressed_rotate_type_signal.emit(self.current_rotate_type)
+
+    def _on_button_released(self) -> None:
+        """回転タイプボタンが離されたときの処理"""
+        self.released_rotate_type_signal.emit()
+
+    def _change_all_button_style(self) -> None:
+        """すべてのボタンのスタイルを変更する"""
+        for button in self.rotate_type_buttons:
+            if button.text() == self.current_rotate_type:
+                button.setStyleSheet("background-color: #5f9ea0;")
+            else:
+                button.setStyleSheet("")
 
 
 class MatchFKToIKGUI(QtWidgets.QMainWindow):
@@ -41,18 +101,16 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
 
         # テーブルビューの設定
         self.ui.match_info_table_view.setModel(MatchInfoTableModel(self.match_fk_to_ik.match_infos))
-        self.ui.match_info_table_view.setItemDelegateForColumn(2, RotateTypeDelegate(self.ui.match_info_table_view))
         self.ui.match_info_table_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.ui.match_info_table_view.horizontalHeader().setStretchLastSection(True)
         self.ui.match_info_table_view.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self.ui.match_info_table_view.customContextMenuRequested.connect(self._open_table_menu)
         self.ui.match_info_table_view.doubleClicked.connect(self._on_double_click_table)
-        # TODO: 回転タイプを選択できるようにする（回転タイプの選択肢をGUIで提供する）これは、クリックしている間は回転タイプが適用された状態がビューに表示され、離したら戻るようにして決めてもらう
-        # TODO: 今はコンボボックスで選択するようにしているが、クリックしている間は回転タイプが適用された状態がビューに表示され、離したら戻るようにして決めてもらう
 
         # シグナルとスロットの接続
         self.ui.match_button.clicked.connect(self.match_fk_to_ik_controller)
         self.ui.add_button.clicked.connect(self.add_match_info)
+        self.ui.manual_action.triggered.connect(self._open_manual_url)
 
         # GUIの設定を復元
         self.restore(GUI_SETTINGS_FILE)
@@ -126,11 +184,43 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
         """テーブルのダブルクリックイベントハンドラ"""
         if not index.isValid():
             return
+        match_info: MatchInfo = self.ui.match_info_table_view.model().data(index, UserRole.MatchInfo)
+        if not match_info:
+            QtWidgets.QMessageBox.warning(self, "選択エラー", "マッチ情報が見つかりません。")
+            return
 
         if index.column() == 0:  # FKコントローラーの列
             self._select_fk_controller()
         elif index.column() == 1:  # ジョイントの列
             self._select_joint()
+        elif index.column() == 2:  # 回転タイプの列
+            rotate_type_dialog = RotateTypeDialog(match_info.type, self)
+            rotate_type_dialog.pressed_rotate_type_signal.connect(self._on_rotate_type_dialog_button_pressed)
+            rotate_type_dialog.released_rotate_type_signal.connect(self._on_rotate_type_dialog_button_released)
+
+            if rotate_type_dialog.exec_() == QtWidgets.QDialog.DialogCode.Accepted:
+                selected_match_info = self.ui.match_info_table_view.model().data(index, UserRole.MatchInfo)
+                if selected_match_info:
+                    selected_match_info.type = rotate_type_dialog.get_selected_type()
+                    self.match_fk_to_ik.match_infos.edit(selected_match_info.fk_ctrl, selected_match_info)
+                    self.ui.match_info_table_view.model().layoutChanged.emit()
+                else:
+                    QtWidgets.QMessageBox.warning(self, "選択エラー", "回転タイプを選択できませんでした。")
+
+    def _on_rotate_type_dialog_button_pressed(self, rotate_type: RotateType) -> None:
+        """回転タイプダイアログのボタンが押されたときの処理"""
+        selected_index = self.ui.match_info_table_view.currentIndex()
+        if not selected_index.isValid():
+            return
+        match_info = self.ui.match_info_table_view.model().data(selected_index, UserRole.MatchInfo)
+        if match_info:
+            match_info.type = rotate_type
+            # TODO ここで回転タイプをmodelには適用しないままmatchを実行する処理を追加する
+            self.match_fk_to_ik_controller()
+
+    def _on_rotate_type_dialog_button_released(self) -> None:
+        """回転タイプダイアログのボタンが離されたときの処理"""
+        undo()
 
     def _select_fk_controller(self) -> None:
         """選択されたFKコントローラーを選択する"""
@@ -153,6 +243,11 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
         match_info = self.ui.match_info_table_view.model().data(selected_index, UserRole.MatchInfo)
         if match_info:
             select_node(match_info.joint)
+
+    def _open_manual_url(self) -> None:
+        """マニュアルのURLを開く"""
+        manual_url = "https://github.com/yus3554/MayaFKtoIK"
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(manual_url))
 
     def restore(self, settings_file: Path) -> None:
         """GUIの設定を復元する"""

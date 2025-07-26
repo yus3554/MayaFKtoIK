@@ -15,22 +15,6 @@ class UserRole(int, Enum):
     MatchInfo = QtCore.Qt.ItemDataRole.UserRole + 1
 
 
-class RotateTypeDelegate(QtWidgets.QStyledItemDelegate):
-    """RotateTypeのデリゲート"""
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-
-    def createEditor(self, parent: QtWidgets.QWidget, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex) -> QtWidgets.QComboBox:  # type: ignore
-        editor = QtWidgets.QComboBox(parent)
-        editor.addItems([rt.name for rt in RotateType])
-        return editor
-
-    def setEditorData(self, editor: QtWidgets.QComboBox, index: QtCore.QModelIndex) -> None:  # type: ignore
-        value = index.data(QtCore.Qt.ItemDataRole.DisplayRole)
-        if value in RotateType.__members__:
-            editor.setCurrentText(value)
-
-
 class MatchInfoTableModel(QtCore.QAbstractTableModel):
     """FKコントローラーとジョイントのマッチ情報を表示するテーブルモデル"""
     def __init__(self, match_infos: MatchInfos, parent=None) -> None:
@@ -80,9 +64,6 @@ class MatchInfoTableModel(QtCore.QAbstractTableModel):
     def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlag:  # type: ignore
         if not index.isValid():
             return QtCore.Qt.ItemFlag.NoItemFlags
-
-        if index.column() == 2:  # Rotate Type column
-            return QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEditable
         return QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable
 
 
@@ -117,3 +98,7 @@ def select_node(node: str) -> None:
         cmds.select(node)
     else:
         cmds.warning(f"Node '{node}' does not exist.")
+
+def undo() -> None:
+    """MayaのUndoを実行する"""
+    cmds.undo()  # type: ignore
