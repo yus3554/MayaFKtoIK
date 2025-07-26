@@ -1,4 +1,5 @@
-from pathlib import Path
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -20,6 +21,8 @@ from .model import (
 from .ui.main_ui import Ui_MainWindow
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from ..core.match_info import MatchInfo
 
 GUI_SETTINGS_FILE = DEFAULT_SETTINGS_FOLDER_PATH / "gui_settings.ini"
@@ -119,8 +122,12 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
         # GUIの設定を復元
         self.restore(GUI_SETTINGS_FILE)
 
-    def match_fk_to_ik_controller(self) -> None:
-        """FKコントローラーの回転をIKジョイントに合わせる"""
+    def match_fk_to_ik_controller(self, override_match_info: MatchInfo | None = None) -> None:
+        """FKコントローラーの回転をジョイントに合わせる
+
+        Args:
+            override_match_info (MatchInfo, optional): マッチ情報を上書きする場合
+        """
         # テーブルの選択された行のFKコントローラーを取得
         selected_indexes = self.ui.match_info_table_view.selectedIndexes()
 
@@ -132,7 +139,7 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
             if not index.isValid():
                 continue
 
-            match_info: MatchInfo = self.ui.match_info_table_view.model().data(index, UserRole.MatchInfo)
+            match_info: MatchInfo = override_match_info if override_match_info else self.ui.match_info_table_view.model().data(index, UserRole.MatchInfo)
             if not match_info:
                 QtWidgets.QMessageBox.warning(self, "選択エラー", "マッチ情報が見つかりません。")
                 return

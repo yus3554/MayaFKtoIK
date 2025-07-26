@@ -6,7 +6,7 @@ from .core.rotate_type import RotateType
 from .utils.decorator import undo_decorator
 
 
-@undo_decorator
+@undo_decorator("Match FK to IK")
 def match_fk_to_ik(info: MatchInfo) -> None:
     """FKコントローラーの回転をジョイントに合わせる
 
