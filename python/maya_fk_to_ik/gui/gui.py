@@ -7,6 +7,10 @@ from ..app import MatchFKToIK
 from ..core.const import DEFAULT_MATCH_INFO_FILE_NAME, DEFAULT_SETTINGS_FOLDER_PATH
 from ..core.rotate_type import RotateType
 from .model import (
+    HEADER_FK_CTRL,
+    HEADER_JOINT,
+    HEADER_ROTATE_TYPE,
+    HEADERS,
     MatchInfoTableModel,
     UserRole,
     get_match_info_from_selection,
@@ -189,11 +193,11 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "選択エラー", "マッチ情報が見つかりません。")
             return
 
-        if index.column() == 0:  # FKコントローラーの列
+        if index.column() == HEADERS.index(HEADER_FK_CTRL):  # FKコントローラーの列
             self._select_fk_controller()
-        elif index.column() == 1:  # ジョイントの列
+        elif index.column() == HEADERS.index(HEADER_JOINT):  # ジョイントの列
             self._select_joint()
-        elif index.column() == 2:  # 回転タイプの列
+        elif index.column() == HEADERS.index(HEADER_ROTATE_TYPE):  # 回転タイプの列
             rotate_type_dialog = RotateTypeDialog(match_info.type, self)
             rotate_type_dialog.pressed_rotate_type_signal.connect(self._on_rotate_type_dialog_button_pressed)
             rotate_type_dialog.released_rotate_type_signal.connect(self._on_rotate_type_dialog_button_released)

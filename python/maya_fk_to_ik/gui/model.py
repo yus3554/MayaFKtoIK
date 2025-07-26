@@ -4,10 +4,15 @@ from enum import Enum
 from typing import Any
 
 import maya.cmds as cmds  # type: ignore
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore
 
 from ..core.match_info import MatchInfo, MatchInfos
 from ..core.rotate_type import RotateType
+
+HEADER_FK_CTRL = "FK Controller"
+HEADER_JOINT = "Joint"
+HEADER_ROTATE_TYPE = "Rotate Type"
+HEADERS = [HEADER_FK_CTRL, HEADER_JOINT, HEADER_ROTATE_TYPE]
 
 
 class UserRole(int, Enum):
@@ -20,7 +25,7 @@ class MatchInfoTableModel(QtCore.QAbstractTableModel):
     def __init__(self, match_infos: MatchInfos, parent=None) -> None:
         super().__init__(parent)
         self.match_infos = match_infos
-        self.headers = ["FK Controller", "Joint", "Rotate Type"]
+        self.headers = HEADERS
 
     def rowCount(self, parent=QtCore.QModelIndex()) -> int:  # type: ignore
         return len(self.match_infos)
@@ -31,7 +36,7 @@ class MatchInfoTableModel(QtCore.QAbstractTableModel):
     def setData(self, index: QtCore.QModelIndex, value: Any, role=QtCore.Qt.ItemDataRole.EditRole) -> bool:  # type: ignore
         if not index.isValid() or role != QtCore.Qt.ItemDataRole.EditRole:
             return False
-        if index.column() == 2:
+        if index.column() == HEADERS.index(HEADER_ROTATE_TYPE):
             # Update the rotate type
             match_info: MatchInfo = list(self.match_infos)[index.row()]
             match_info.type = RotateType[value]
@@ -46,11 +51,11 @@ class MatchInfoTableModel(QtCore.QAbstractTableModel):
         match_info: MatchInfo = list(self.match_infos)[index.row()]
 
         if role == QtCore.Qt.ItemDataRole.DisplayRole:
-            if index.column() == 0:
+            if index.column() == HEADERS.index(HEADER_FK_CTRL):
                 return get_simple_node_name(match_info.fk_ctrl)
-            if index.column() == 1:
+            if index.column() == HEADERS.index(HEADER_JOINT):
                 return get_simple_node_name(match_info.joint)
-            if index.column() == 2:  # noqa: PLR2004
+            if index.column() == HEADERS.index(HEADER_ROTATE_TYPE):
                 return match_info.type
         elif role == UserRole.MatchInfo:
             return match_info
