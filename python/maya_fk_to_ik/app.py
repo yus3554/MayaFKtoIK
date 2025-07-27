@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import maya.cmds as cmds  # type: ignore
 
 from .core.const import DEFAULT_MATCH_INFO_FILE_NAME, DEFAULT_SETTINGS_FOLDER_PATH
@@ -29,13 +31,14 @@ class MatchFKToIK:
         if match_info_file.exists():
             self.match_infos.load_json(match_info_file)
 
-    def match(self, fk_ctrl: str) -> None:
+    def match(self, fk_ctrl: str, override_match_info: MatchInfo | None = None) -> None:
         """FKコントローラーに対応するジョイントの回転を合わせる
 
         Args:
             fk_ctrl (str): FKコントローラーの名前
+            override_match_info (MatchInfo, optional): 上書きするマッチ情報
         """
-        match_info = self.match_infos.get(fk_ctrl)
+        match_info = override_match_info if override_match_info else self.match_infos.get(fk_ctrl)
         if match_info:
             match_fk_to_ik(match_info)
         else:

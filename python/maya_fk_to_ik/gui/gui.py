@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -135,6 +136,9 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "選択エラー", "マッチ情報を選択してください。")
             return
 
+        # selected_indexesは行と列の両方のインデックスを持つ可能性があるため、行インデックスのみを取得
+        selected_indexes = [index for index in selected_indexes if index.column() == 0]
+
         for index in selected_indexes:
             if not index.isValid():
                 continue
@@ -145,7 +149,7 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
                 return
 
             if match_info:
-                self.match_fk_to_ik.match(match_info.fk_ctrl)
+                self.match_fk_to_ik.match(match_info.fk_ctrl, override_match_info=match_info)
                 self.ui.match_info_table_view.model().layoutChanged.emit()
             else:
                 QtWidgets.QMessageBox.warning(self, "入力エラー", "FKコントローラー名を入力してください。")
@@ -208,8 +212,9 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
             rotate_type_dialog = RotateTypeDialog(match_info.type, self)
             rotate_type_dialog.pressed_rotate_type_signal.connect(self._on_rotate_type_dialog_button_pressed)
             rotate_type_dialog.released_rotate_type_signal.connect(self._on_rotate_type_dialog_button_released)
+            result = rotate_type_dialog.exec_()
 
-            if rotate_type_dialog.exec_() == QtWidgets.QDialog.DialogCode.Accepted:
+            if result == QtWidgets.QDialog.DialogCode.Accepted:
                 selected_match_info = self.ui.match_info_table_view.model().data(index, UserRole.MatchInfo)
                 if selected_match_info:
                     selected_match_info.type = rotate_type_dialog.get_selected_type()
@@ -223,11 +228,12 @@ class MatchFKToIKGUI(QtWidgets.QMainWindow):
         selected_index = self.ui.match_info_table_view.currentIndex()
         if not selected_index.isValid():
             return
+
         match_info = self.ui.match_info_table_view.model().data(selected_index, UserRole.MatchInfo)
+        match_info = deepcopy(match_info) if match_info else None
         if match_info:
             match_info.type = rotate_type
-            # TODO ここで回転タイプをmodelには適用しないままmatchを実行する処理を追加する
-            self.match_fk_to_ik_controller()
+            self.match_fk_to_ik_controller(override_match_info=match_info)
 
     def _on_rotate_type_dialog_button_released(self) -> None:
         """回転タイプダイアログのボタンが離されたときの処理"""
